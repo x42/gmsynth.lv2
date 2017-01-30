@@ -627,10 +627,6 @@ LV2_SYMBOL_EXPORT
 const LV2_Descriptor*
 lv2_descriptor (uint32_t index)
 {
-#if (defined _WIN32 && defined RTK_STATIC_INIT)
-	static int once = 0;
-	if (!once) {once = 1; gobject_init_ctor();}
-#endif
 	switch (index) {
 	case 0:
 		return &descriptor;
