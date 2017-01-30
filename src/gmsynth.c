@@ -78,9 +78,23 @@ static char* xml_escape (char *s)
 	while ((tmp = strchr (rv, '"'))) {
 		*tmp = '\'';
 	}
-	// TODO: '&' -> "&amp;"
-	while ((tmp = strchr (rv, '&'))) {
-		*tmp = '+';
+
+	tmp = rv;
+	int cnt = 0;
+	while (*tmp && (tmp = strchr (tmp, '&'))) {
+		++cnt;
+		++tmp;
+	}
+	if (cnt == 0) {
+		return rv;
+	}
+
+	rv = realloc (rv, strlen (rv) + 4 * cnt);
+	tmp = rv;
+	while ((tmp = strchr (tmp, '&'))) {
+		memcpy (tmp + 4, tmp, strlen (tmp));
+		strncpy (tmp, "&amp;", 5);
+		++tmp;
 	}
 	return rv;
 }
