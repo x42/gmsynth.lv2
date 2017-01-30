@@ -78,7 +78,10 @@ static char* xml_escape (char *s)
 	while ((tmp = strchr (rv, '"'))) {
 		*tmp = '\'';
 	}
-	// '&' -> "&amp;" // not needed with current .sf2
+	// TODO: '&' -> "&amp;"
+	while ((tmp = strchr (rv, '&'))) {
+		*tmp = '+';
+	}
 	return rv;
 }
 
