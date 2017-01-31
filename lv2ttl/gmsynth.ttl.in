@@ -9,7 +9,6 @@
 @prefix state: <http://lv2plug.in/ns/ext/state#> .
 @prefix ui:    <http://lv2plug.in/ns/extensions/ui#> .
 @prefix urid:  <http://lv2plug.in/ns/ext/urid#> .
-@prefix work:  <http://lv2plug.in/ns/ext/worker#> .
 
 
 <http://gareus.org/oss/lv2/@LV2NAME@>
@@ -22,8 +21,7 @@
 
   @VERSION@
 
-  lv2:requiredFeature urid:map, work:schedule ;
-  lv2:extensionData work:interface;
+  lv2:requiredFeature urid:map;
   lv2:optionalFeature lv2:hardRTCapable;
 
   lv2:port [

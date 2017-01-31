@@ -35,7 +35,6 @@
 #include <lv2/lv2plug.in/ns/ext/log/logger.h>
 #include <lv2/lv2plug.in/ns/ext/midi/midi.h>
 #include <lv2/lv2plug.in/ns/ext/urid/urid.h>
-#include <lv2/lv2plug.in/ns/ext/worker/worker.h>
 
 #include "midnam_lv2.h"
 
@@ -158,7 +157,6 @@ typedef struct {
 	/* LV2 extensions */
 	LV2_Log_Log*         log;
 	LV2_Log_Logger       logger;
-	LV2_Worker_Schedule* schedule;
 
 	/* midnam/presets */
 	LV2_Midnam*          midnam;
@@ -167,12 +165,6 @@ typedef struct {
 
 	/* state */
 	bool panic;
-	bool initialized;
-	bool inform_ui;
-
-	char queue_sf2_file_path[1024];
-	bool reinit_in_progress; // set in run, cleared in work_response
-	bool queue_reinit; // set in restore, cleared in work_response
 
 	uint8_t last_bank_lsb;
 	uint8_t last_bank_msb;
@@ -259,8 +251,6 @@ instantiate (const LV2_Descriptor*     descriptor,
 			map = (LV2_URID_Map*)features[i]->data;
 		} else if (!strcmp (features[i]->URI, LV2_LOG__log)) {
 			self->log = (LV2_Log_Log*)features[i]->data;
-		} else if (!strcmp (features[i]->URI, LV2_WORKER__schedule)) {
-			self->schedule = (LV2_Worker_Schedule*)features[i]->data;
 		} else if (!strcmp (features[i]->URI, LV2_MIDNAM__update)) {
 			self->midnam = (LV2_Midnam*)features[i]->data;
 		}
@@ -274,17 +264,12 @@ instantiate (const LV2_Descriptor*     descriptor,
 		return NULL;
 	}
 
-	if (!self->schedule) {
-		lv2_log_error (&self->logger, "gmsynth.lv2: Host does not support worker:schedule\n");
-		free (self);
-		return NULL;
-	}
+	char sf2_file_path[1024];
+	snprintf (sf2_file_path, sizeof (sf2_file_path), "%s" PATH_SEP "GeneralUser_LV2.sf2", bundle_path);
+	sf2_file_path[sizeof(sf2_file_path) - 1] = '\0';
 
-	snprintf (self->queue_sf2_file_path, sizeof (self->queue_sf2_file_path), "%s" PATH_SEP "GeneralUser_LV2.sf2", bundle_path);
-	self->queue_sf2_file_path[sizeof(self->queue_sf2_file_path) - 1] = '\0';
-
-	if (!file_exists (self->queue_sf2_file_path)) {
-		lv2_log_error (&self->logger, "gmsynth.lv2: Cannot find soundfont: '%s'\n", self->queue_sf2_file_path);
+	if (!file_exists (sf2_file_path)) {
+		lv2_log_error (&self->logger, "gmsynth.lv2: Cannot find soundfont: '%s'\n", sf2_file_path);
 		free (self);
 		return NULL;
 	}
@@ -330,15 +315,27 @@ instantiate (const LV2_Descriptor*     descriptor,
 	/* initialize plugin state */
 
 	pthread_mutex_init (&self->bp_lock, NULL);
-	self->inform_ui = false;
 	self->presets = calloc (1, sizeof (struct Bank));
+	self->midi_MidiEvent = map->map (map->handle, LV2_MIDI__MidiEvent);
 
 	self->panic = false;
-	self->initialized = false;
-	self->reinit_in_progress = false;
-	self->queue_reinit = true;
 
-	self->midi_MidiEvent = map->map (map->handle, LV2_MIDI__MidiEvent);
+	/* load .sf2 */
+	if (load_sf2 (self, sf2_file_path)) {
+		fluid_synth_all_notes_off (self->synth, -1);
+		fluid_synth_all_sounds_off (self->synth, -1);
+		self->panic = false;
+		/* boostrap synth engine. */
+		float b[1024];
+		fluid_synth_write_float (self->synth, 1024, b, 0, 1, b, 0, 1);
+	} else {
+		lv2_log_error (&self->logger, "gmsynth.lv2: cannot load SoundFont\n");
+		delete_fluid_synth (self->synth);
+		delete_fluid_settings (self->settings);
+		free (self->presets);
+		free (self);
+		return NULL;
+	}
 
 	return (LV2_Handle)self;
 }
@@ -378,10 +375,7 @@ run (LV2_Handle instance, uint32_t n_samples)
 		return;
 	}
 
-	if (!self->initialized || self->reinit_in_progress) {
-		memset (self->p_ports[GFS_PORT_OUT_L], 0, n_samples * sizeof (float));
-		memset (self->p_ports[GFS_PORT_OUT_R], 0, n_samples * sizeof (float));
-	} else if (self->panic) {
+	if (self->panic) {
 		fluid_synth_all_notes_off (self->synth, -1);
 		fluid_synth_all_sounds_off (self->synth, -1);
 		self->panic = false;
@@ -390,7 +384,7 @@ run (LV2_Handle instance, uint32_t n_samples)
 	uint32_t offset = 0;
 
 	LV2_ATOM_SEQUENCE_FOREACH (self->control, ev) {
-		if (ev->body.type == self->midi_MidiEvent && self->initialized && !self->reinit_in_progress) {
+		if (ev->body.type == self->midi_MidiEvent) {
 			if (ev->body.size > 3 || ev->time.frames >= n_samples) {
 				continue;
 			}
@@ -428,18 +422,7 @@ run (LV2_Handle instance, uint32_t n_samples)
 		}
 	}
 
-	if (self->queue_reinit && !self->reinit_in_progress) {
-		self->reinit_in_progress = true;
-		int magic = 0x08154711;
-		self->schedule->schedule_work (self->schedule->handle, sizeof (int), &magic);
-	}
-
-	if (self->inform_ui && self->midnam) {
-		self->inform_ui = false;
-		self->midnam->update (self->midnam->handle);
-	}
-
-	if (n_samples > offset && self->initialized && !self->reinit_in_progress) {
+	if (n_samples > offset) {
 		fluid_synth_write_float (
 				self->synth,
 				n_samples - offset,
@@ -462,50 +445,6 @@ static void cleanup (LV2_Handle instance)
 /* *****************************************************************************
  * LV2 Extensions
  */
-
-static LV2_Worker_Status
-work (LV2_Handle                  instance,
-      LV2_Worker_Respond_Function respond,
-      LV2_Worker_Respond_Handle   handle,
-      uint32_t                    size,
-      const void*                 data)
-{
-	GFSSynth* self = (GFSSynth*)instance;
-
-	if (size != sizeof (int)) {
-		return LV2_WORKER_ERR_UNKNOWN;
-	}
-	int magic = *((const int*)data);
-	if (magic != 0x08154711) {
-		return LV2_WORKER_ERR_UNKNOWN;
-	}
-
-	self->initialized = load_sf2 (self, self->queue_sf2_file_path);
-
-	if (self->initialized) {
-		fluid_synth_all_notes_off (self->synth, -1);
-		fluid_synth_all_sounds_off (self->synth, -1);
-		self->panic = false;
-		/* boostrap synth engine. */
-		float b[1024];
-		fluid_synth_write_float (self->synth, 1024, b, 0, 1, b, 0, 1);
-	}
-
-	respond (handle, 1, "");
-	return LV2_WORKER_SUCCESS;
-}
-
-static LV2_Worker_Status
-work_response (LV2_Handle  instance,
-               uint32_t    size,
-               const void* data)
-{
-	GFSSynth* self = (GFSSynth*)instance;
-	self->reinit_in_progress = false;
-	self->inform_ui = true;
-	self->queue_reinit = false;
-	return LV2_WORKER_SUCCESS;
-}
 
 static char*
 mn_file (LV2_Handle instance)
@@ -617,11 +556,7 @@ mn_free (char* v)
 static const void*
 extension_data (const char* uri)
 {
-	static const LV2_Worker_Interface worker = { work, work_response, NULL };
 	static const LV2_Midnam_Interface midnam = { mn_file, mn_model, mn_free };
-	if (!strcmp (uri, LV2_WORKER__interface)) {
-		return &worker;
-	}
 	if (!strcmp (uri, LV2_MIDNAM__interface)) {
 		return &midnam;
 	}
