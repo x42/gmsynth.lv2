@@ -301,6 +301,7 @@ instantiate (const LV2_Descriptor*     descriptor,
 	fluid_settings_setnum (self->settings, "synth.sample-rate", rate);
 	fluid_settings_setint (self->settings, "synth.parallel-render", 1);
 	fluid_settings_setint (self->settings, "synth.threadsafe-api", 0);
+	fluid_settings_setstr (self->settings, "synth.midi-bank-select", "mma");
 	fluid_settings_setint (self->settings, "synth.audio-channels", 1); // stereo pairs
 
 	self->synth = new_fluid_synth (self->settings);
@@ -555,6 +556,10 @@ mn_file (LV2_Handle instance)
 	while (b->next) {
 		struct Program* p = b->pgm;
 		pf ("      <PatchBank Name=\"Patch Bank %d\">\n", b->bank);
+		pf ("        <MIDICommands>\n");
+		pf ("            <ControlChange Control=\"0\" Value=\"%d\"/>\n", (b->bank >> 7) & 127);
+		pf ("            <ControlChange Control=\"32\" Value=\"%d\"/>\n", b->bank & 127);
+		pf ("        </MIDICommands>\n");
 		if (p->next) {
 			pf ("        <PatchNameList>\n");
 			int n = 0;
