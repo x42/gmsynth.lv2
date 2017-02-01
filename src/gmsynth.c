@@ -88,10 +88,10 @@ static char* xml_escape (char *s)
 		return rv;
 	}
 
-	rv = realloc (rv, strlen (rv) + 4 * cnt);
+	rv = realloc (rv, 1 + strlen (rv) + 4 * cnt);
 	tmp = rv;
-	while ((tmp = strchr (tmp, '&'))) {
-		memcpy (tmp + 4, tmp, strlen (tmp));
+	while (*tmp && (tmp = strchr (tmp, '&'))) {
+		memcpy (tmp + 4, tmp, strlen (tmp) + 1);
 		strncpy (tmp, "&amp;", 5);
 		++tmp;
 	}
