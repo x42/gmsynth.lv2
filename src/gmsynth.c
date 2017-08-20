@@ -91,7 +91,7 @@ static char* xml_escape (char *s)
 	rv = realloc (rv, 1 + strlen (rv) + 4 * cnt);
 	tmp = rv;
 	while (*tmp && (tmp = strchr (tmp, '&'))) {
-		memcpy (tmp + 4, tmp, strlen (tmp) + 1);
+		memmove (tmp + 4, tmp, strlen (tmp) + 1);
 		strncpy (tmp, "&amp;", 5);
 		++tmp;
 	}
