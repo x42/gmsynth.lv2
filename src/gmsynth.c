@@ -37,6 +37,7 @@
 #include <lv2/lv2plug.in/ns/ext/urid/urid.h>
 
 #include "midnam_lv2.h"
+#include "bankpatch_lv2.h"
 
 #include "fluidsynth.h"
 
@@ -163,11 +164,16 @@ typedef struct {
 	struct Bank*         presets;
 	pthread_mutex_t      bp_lock;
 
+	/* bank/patch notifications */
+	LV2_BankPatch*       bankpatch;
+
 	/* state */
 	bool panic;
+	bool send_bankpgm;
 
-	uint8_t last_bank_lsb;
-	uint8_t last_bank_msb;
+	uint8_t last_bank_lsb[16];
+	uint8_t last_bank_msb[16];
+	uint8_t last_program[16];
 
 	fluid_midi_event_t* fmidi_event;
 
@@ -202,8 +208,14 @@ load_sf2 (GFSSynth* self, const char* fn)
 	pthread_mutex_lock (&self->bp_lock);
 	for (chn = 0; sfont->iteration_next (sfont, &preset); ++chn) {
 		if (chn < 16) {
-			fluid_synth_program_select (self->synth, chn, synth_id,
-					preset.get_banknum (&preset), preset.get_num (&preset));
+			int bank = preset.get_banknum (&preset);
+			int pgm  = preset.get_num (&preset);
+
+			fluid_synth_program_select (self->synth, chn, synth_id, bank, pgm);
+			self->last_bank_msb[chn] = bank >> 7;
+			self->last_bank_lsb[chn] = bank & 127;
+			self->last_program[chn]  = pgm;
+
 		}
 
 		add_program (get_pgmlist (self->presets, preset.get_banknum (&preset)),
@@ -253,6 +265,8 @@ instantiate (const LV2_Descriptor*     descriptor,
 			self->log = (LV2_Log_Log*)features[i]->data;
 		} else if (!strcmp (features[i]->URI, LV2_MIDNAM__update)) {
 			self->midnam = (LV2_Midnam*)features[i]->data;
+		} else if (!strcmp (features[i]->URI, LV2_BANKPATCH__notify)) {
+			self->bankpatch = (LV2_BankPatch*)features[i]->data;
 		}
 	}
 
@@ -319,6 +333,11 @@ instantiate (const LV2_Descriptor*     descriptor,
 	self->midi_MidiEvent = map->map (map->handle, LV2_MIDI__MidiEvent);
 
 	self->panic = false;
+	self->send_bankpgm = true;
+
+	for (uint8_t chn = 0; chn < 16; ++chn) {
+		self->last_program[chn] = 255;
+	}
 
 	/* load .sf2 */
 	if (load_sf2 (self, sf2_file_path)) {
@@ -405,6 +424,14 @@ run (LV2_Handle instance, uint32_t n_samples)
 			if (ev->body.size > 1) {
 				fluid_midi_event_set_key (self->fmidi_event, data[1]);
 			}
+			if (ev->body.size == 2 && 0xc0 /* Pgm */ == fluid_midi_event_get_type (self->fmidi_event)) {
+				int chn = fluid_midi_event_get_channel (self->fmidi_event);
+				self->last_program[chn] = data[1];
+				if (self->bankpatch) {
+					self->bankpatch->notify (self->bankpatch->handle, chn,
+							(self->last_bank_msb[chn] << 7) | self->last_bank_lsb[chn], data[1]);
+				}
+			}
 			if (ev->body.size > 2) {
 				if (0xe0 /*PITCH_BEND*/ == fluid_midi_event_get_type (self->fmidi_event)) {
 					fluid_midi_event_set_value (self->fmidi_event, 0);
@@ -413,8 +440,9 @@ run (LV2_Handle instance, uint32_t n_samples)
 					fluid_midi_event_set_value (self->fmidi_event, data[2]);
 				}
 				if (0xb0 /* CC */ == fluid_midi_event_get_type (self->fmidi_event)) {
-					if (data[1] == 0x00) { self->last_bank_msb = data[2]; }
-					if (data[1] == 0x20) { self->last_bank_lsb = data[2]; }
+					int chn = fluid_midi_event_get_channel (self->fmidi_event);
+					if (data[1] == 0x00) { self->last_bank_msb[chn] = data[2]; }
+					if (data[1] == 0x20) { self->last_bank_lsb[chn] = data[2]; }
 				}
 			}
 
@@ -428,6 +456,15 @@ run (LV2_Handle instance, uint32_t n_samples)
 				n_samples - offset,
 				&self->p_ports[GFS_PORT_OUT_L][offset], 0, 1,
 				&self->p_ports[GFS_PORT_OUT_R][offset], 0, 1);
+	}
+
+	if (self->send_bankpgm && self->bankpatch) {
+		self->send_bankpgm = false;
+		for (uint8_t chn = 0; chn < 16; ++chn) {
+			self->bankpatch->notify (self->bankpatch->handle, chn,
+					(self->last_bank_msb[chn] << 7) | self->last_bank_lsb[chn],
+					self->last_program[chn] > 127 ? 255 : self->last_program[chn]);
+		}
 	}
 }
 
