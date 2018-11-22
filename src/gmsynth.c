@@ -71,7 +71,7 @@ struct Bank {
 	struct Bank* next;
 };
 
-static char* xml_escape (char *s)
+static char* xml_escape (const char *s)
 {
 	char* rv = strdup (s);
 	char* tmp;
@@ -113,7 +113,7 @@ static struct Program* get_pgmlist (struct Bank* b, int bank)
 	return b->pgm;
 }
 
-static void add_program (struct Program* p, char* n, int program)
+static void add_program (struct Program* p, const char* n, int program)
 {
 	while (p->next) {
 		p = p->next;
@@ -203,13 +203,13 @@ load_sf2 (GFSSynth* self, const char* fn)
 	}
 
 	int chn;
-	fluid_preset_t preset;
-	sfont->iteration_start (sfont);
+	fluid_preset_t* preset;
+	fluid_sfont_iteration_start (sfont);
 	pthread_mutex_lock (&self->bp_lock);
-	for (chn = 0; sfont->iteration_next (sfont, &preset); ++chn) {
+	for (chn = 0; (preset = fluid_sfont_iteration_next (sfont)); ++chn) {
 		if (chn < 16) {
-			int bank = preset.get_banknum (&preset);
-			int pgm  = preset.get_num (&preset);
+			int bank = fluid_preset_get_banknum (preset);
+			int pgm  = fluid_preset_get_num (preset);
 
 			fluid_synth_program_select (self->synth, chn, synth_id, bank, pgm);
 			self->last_bank_msb[chn] = bank >> 7;
@@ -218,9 +218,9 @@ load_sf2 (GFSSynth* self, const char* fn)
 
 		}
 
-		add_program (get_pgmlist (self->presets, preset.get_banknum (&preset)),
-					preset.get_name (&preset),
-					preset.get_num (&preset));
+		add_program (get_pgmlist (self->presets, fluid_preset_get_banknum (preset)),
+					fluid_preset_get_name (preset),
+					fluid_preset_get_num (preset));
 	}
 	pthread_mutex_unlock (&self->bp_lock);
 
