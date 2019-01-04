@@ -207,20 +207,25 @@ load_sf2 (GFSSynth* self, const char* fn)
 	fluid_sfont_iteration_start (sfont);
 	pthread_mutex_lock (&self->bp_lock);
 	for (chn = 0; (preset = fluid_sfont_iteration_next (sfont)); ++chn) {
+		int bank         = fluid_preset_get_banknum (preset);
+		int pgm          = fluid_preset_get_num (preset);
+		const char* name = fluid_preset_get_name (preset);
 		if (chn < 16) {
-			int bank = fluid_preset_get_banknum (preset);
-			int pgm  = fluid_preset_get_num (preset);
-
 			fluid_synth_program_select (self->synth, chn, synth_id, bank, pgm);
 			self->last_bank_msb[chn] = bank >> 7;
 			self->last_bank_lsb[chn] = bank & 127;
 			self->last_program[chn]  = pgm;
 
 		}
+		if (0 == strcmp (name, "Standard")) {
+			/* set default drumkit to channel 10 */
+			fluid_synth_program_select (self->synth, 9, synth_id, bank, pgm);
+			self->last_bank_msb[9] = bank >> 7;
+			self->last_bank_lsb[9] = bank & 127;
+			self->last_program[9]  = pgm;
+		}
 
-		add_program (get_pgmlist (self->presets, fluid_preset_get_banknum (preset)),
-					fluid_preset_get_name (preset),
-					fluid_preset_get_num (preset));
+		add_program (get_pgmlist (self->presets, bank), name, pgm);
 	}
 	pthread_mutex_unlock (&self->bp_lock);
 
