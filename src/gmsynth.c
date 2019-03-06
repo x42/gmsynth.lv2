@@ -303,7 +303,6 @@ instantiate (const LV2_Descriptor*     descriptor,
 	}
 
 	fluid_settings_setnum (self->settings, "synth.sample-rate", rate);
-	fluid_settings_setint (self->settings, "synth.parallel-render", 1);
 	fluid_settings_setint (self->settings, "synth.threadsafe-api", 0);
 	fluid_settings_setstr (self->settings, "synth.midi-bank-select", "mma");
 	fluid_settings_setint (self->settings, "synth.audio-channels", 1); // stereo pairs
