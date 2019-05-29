@@ -559,6 +559,7 @@ mn_file (LV2_Handle instance)
 	pf ("    </ChannelNameSet>\n");
 
 	pf ("    <ControlNameList Name=\"Controls\">\n");
+	pf ("       <Control Type=\"7bit\" Number=\"1\" Name=\"Modulation Wheel\"/>\n");
 	pf ("       <Control Type=\"7bit\" Number=\"7\" Name=\"Channel Volume\"/>\n");
 	pf ("       <Control Type=\"7bit\" Number=\"10\" Name=\"Pan\"/>\n");
 	pf ("       <Control Type=\"7bit\" Number=\"39\" Name=\"Channel Volume (Fine)\"/>\n");
