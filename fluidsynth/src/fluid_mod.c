@@ -410,13 +410,13 @@ fluid_mod_get_value(fluid_mod_t *mod, fluid_voice_t *voice)
     if(fluid_mod_test_identity(mod, &default_vel2filter_mod))
     {
 // S. Christian Collins' mod, to stop forcing velocity based filtering
-        /*
+
             if (voice->vel < 64){
               return (fluid_real_t) mod->amount / 2.0;
             } else {
               return (fluid_real_t) mod->amount * (127 - voice->vel) / 127;
             }
-        */
+
         return 0; // (fluid_real_t) mod->amount / 2.0;
     }
 
