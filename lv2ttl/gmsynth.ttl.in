@@ -14,6 +14,12 @@
 <http://ardour.org/lv2/midnam#update> a lv2:Feature .
 <http://ardour.org/lv2/bankpatch#notify> a lv2:Feature .
 
+<http://gareus.org/rgareus#me>
+	a foaf:Person ;
+	foaf:name "Robin Gareus" ;
+	foaf:mbox <mailto:robin@gareus.org> ;
+	foaf:homepage <http://gareus.org/> .
+
 <http://gareus.org/oss/lv2/@LV2NAME@>
   a doap:Project, lv2:InstrumentPlugin, lv2:Plugin ;
 
