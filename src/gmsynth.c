@@ -510,7 +510,7 @@ mn_file (LV2_Handle instance)
 			"  <Author/>\n"
 			"  <MasterDeviceNames>\n"
 			"    <Manufacturer>Ardour Foundation</Manufacturer>\n"
-			"    <Model>%s:%p</Model>\n", GFS_URN, (void*) self);
+			"    <Model>GM Synth LV2:%p</Model>\n", (void*) self);
 
 
 	pf ("    <CustomDeviceMode Name=\"Default\">\n");
@@ -589,7 +589,7 @@ mn_model (LV2_Handle instance)
 {
 	GFSSynth* self = (GFSSynth*)instance;
 	char* rv = (char*) malloc (64 * sizeof (char));
-	snprintf (rv, 64, "%s:%p", GFS_URN, (void*) self);
+	snprintf (rv, 64, "GM Synth LV2:%p", (void*) self);
 	rv[63] = 0;
 	return rv;
 }
