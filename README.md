@@ -25,5 +25,5 @@ make install LV2DIR=~/.lv2
 ```
 
 Note to packagers: the Makefile honors `PREFIX` and `DESTDIR` variables as well
-as `CXXLAGS`, `LDFLAGS` and `OPTIMIZATIONS` (additions to `CXXFLAGS`), also
+as `CXXFLAGS`, `LDFLAGS` and `OPTIMIZATIONS` (additions to `CXXFLAGS`), also
 see the first 10 lines of the Makefile.
