@@ -11,6 +11,7 @@ LV2DIR ?= $(PREFIX)/lib/lv2
 
 OPTIMIZATIONS ?= -msse -msse2 -mfpmath=sse -ffast-math -fomit-frame-pointer -O3 -fno-finite-math-only -DNDEBUG
 CFLAGS ?= -Wall -g -Wno-unused-function
+PKG_CONFIG ?= pkg-config
 STRIP  ?= strip
 
 gmsynth_VERSION?=$(shell git describe --tags HEAD 2>/dev/null | sed 's/-g.*$$//;s/^v//' || echo "LV2")
@@ -60,32 +61,32 @@ include git2lv2.mk
 
 ###############################################################################
 # check for build-dependencies
-ifeq ($(shell pkg-config --exists lv2 || echo no), no)
+ifeq ($(shell $(PKG_CONFIG) --exists lv2 || echo no), no)
   $(error "LV2 SDK was not found")
 endif
 
-ifeq ($(shell pkg-config --atleast-version=1.6.0 lv2 || echo no), no)
+ifeq ($(shell $(PKG_CONFIG) --atleast-version=1.6.0 lv2 || echo no), no)
   $(error "LV2 SDK needs to be version 1.6.0 or later")
 endif
 
-ifeq ($(shell pkg-config --exists glib-2.0 || echo no), no)
+ifeq ($(shell $(PKG_CONFIG) --exists glib-2.0 || echo no), no)
   $(error "glib-2.0 was not found.")
 endif
 
 # check for lv2_atom_forge_object  new in 1.8.1 deprecates lv2_atom_forge_blank
-ifeq ($(shell pkg-config --atleast-version=1.8.1 lv2 && echo yes), yes)
+ifeq ($(shell $(PKG_CONFIG) --atleast-version=1.8.1 lv2 && echo yes), yes)
   override CFLAGS += -DHAVE_LV2_1_8
 endif
 
 # add library dependent flags and libs
 override CFLAGS += $(OPTIMIZATIONS) -DVERSION="\"$(gmsynth_VERSION)\""
-override CFLAGS += `pkg-config --cflags lv2 glib-2.0`
+override CFLAGS += `$(PKG_CONFIG) --cflags lv2 glib-2.0`
 ifeq ($(XWIN),)
 override CFLAGS += -fPIC -fvisibility=hidden
 else
 override CFLAGS += -DPTW32_STATIC_LIB
 endif
-override LOADLIBES += `pkg-config $(PKG_UI_FLAGS) --libs glib-2.0`
+override LOADLIBES += `$(PKG_CONFIG) $(PKG_UI_FLAGS) --libs glib-2.0`
 
 
 ###############################################################################
