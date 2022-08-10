@@ -9,12 +9,27 @@ MANDIR ?= $(PREFIX)/share/man/man1
 # see http://lv2plug.in/pages/filesystem-hierarchy-standard.html, don't use libdir
 LV2DIR ?= $(PREFIX)/lib/lv2
 
-OPTIMIZATIONS ?= -msse -msse2 -mfpmath=sse -ffast-math -fomit-frame-pointer -O3 -fno-finite-math-only -DNDEBUG
 CFLAGS ?= -Wall -g -Wno-unused-function
 PKG_CONFIG ?= pkg-config
 STRIP  ?= strip
 
 gmsynth_VERSION?=$(shell git describe --tags HEAD 2>/dev/null | sed 's/-g.*$$//;s/^v//' || echo "LV2")
+
+###############################################################################
+
+MACHINE=$(shell uname -m)
+ifneq (,$(findstring x64,$(MACHINE)))
+  HAVE_SSE=yes
+endif
+ifneq (,$(findstring 86,$(MACHINE)))
+  HAVE_SSE=yes
+endif
+
+ifeq ($(HAVE_SSE),yes)
+  OPTIMIZATIONS ?= -msse -msse2 -mfpmath=sse --fast-math -fomit-frame-pointer -O3 -fno-finite-math-only -DNDEBUG
+else
+  OPTIMIZATIONS ?= -fomit-frame-pointer -O3 -fno-finite-math-only -DNDEBUG
+endif
 
 ###############################################################################
 
