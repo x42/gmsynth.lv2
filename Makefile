@@ -93,6 +93,10 @@ ifeq ($(shell $(PKG_CONFIG) --atleast-version=1.8.1 lv2 && echo yes), yes)
   override CFLAGS += -DHAVE_LV2_1_8
 endif
 
+ifeq ($(shell $(PKG_CONFIG) --atleast-version=1.18.6 lv2 && echo yes), yes)
+  override CXXFLAGS += -DHAVE_LV2_1_18_6
+endif
+
 # add library dependent flags and libs
 override CFLAGS += $(OPTIMIZATIONS) -DVERSION="\"$(gmsynth_VERSION)\""
 override CFLAGS += `$(PKG_CONFIG) --cflags lv2 glib-2.0`
