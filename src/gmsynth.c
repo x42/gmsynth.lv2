@@ -150,6 +150,15 @@ static void clear_banks (struct Bank* b) {
 	}
 }
 
+static bool
+is_drum_program (int bank, uint8_t pgm)
+{
+	if (bank == 128 || bank == 120) {
+		return true;
+	}
+	return false;
+}
+
 typedef struct {
 	/* ports */
 	const LV2_Atom_Sequence* control;
@@ -183,6 +192,7 @@ typedef struct {
 	uint8_t last_bank_lsb[16];
 	uint8_t last_bank_msb[16];
 	uint8_t last_program[16];
+	bool    is_drums[16];
 
 	fluid_midi_event_t* fmidi_event;
 
@@ -232,6 +242,7 @@ load_sf2 (GFSSynth* self, const char* fn)
 			self->last_bank_msb[9] = bank >> 7;
 			self->last_bank_lsb[9] = bank & 127;
 			self->last_program[9]  = pgm;
+			self->is_drums[9]      = true;
 		}
 
 		add_program (get_pgmlist (self->presets, bank), name, pgm);
@@ -350,6 +361,7 @@ instantiate (const LV2_Descriptor*     descriptor,
 
 	for (uint8_t chn = 0; chn < 16; ++chn) {
 		self->last_program[chn] = 255;
+		self->is_drums[chn] = false;
 	}
 
 	/* load .sf2 */
@@ -444,6 +456,12 @@ run (LV2_Handle instance, uint32_t n_samples)
 					self->bankpatch->notify (self->bankpatch->handle, chn,
 							(self->last_bank_msb[chn] << 7) | self->last_bank_lsb[chn], data[1]);
 				}
+
+				bool is_drum = is_drum_program ((self->last_bank_msb[chn] << 7) | self->last_bank_lsb[chn], data[1]);
+				if (self->midnam && self->is_drums[chn] != is_drum) {
+					self->midnam->update (self->midnam->handle);
+				}
+				self->is_drums[chn] = is_drum;
 			}
 			if (ev->body.size > 2) {
 				if (0xe0 /*PITCH_BEND*/ == fluid_midi_event_get_type (self->fmidi_event)) {
@@ -525,17 +543,23 @@ mn_file (LV2_Handle instance)
 	pf ("    <CustomDeviceMode Name=\"Default\">\n");
 	pf ("      <ChannelNameSetAssignments>\n");
 	for (int c = 0; c < 16; ++c) {
-		pf ("        <ChannelNameSetAssign Channel=\"%d\" NameSet=\"Presets\"/>\n", c + 1);
+		if (self->is_drums[c]) {
+			pf ("        <ChannelNameSetAssign Channel=\"%d\" NameSet=\"GM Drums\"/>\n", c + 1);
+		} else {
+			pf ("        <ChannelNameSetAssign Channel=\"%d\" NameSet=\"GM Notes\"/>\n", c + 1);
+		}
 	}
 	pf ("      </ChannelNameSetAssignments>\n");
 	pf ("    </CustomDeviceMode>\n");
 
-	// TODO collect used banks, std::set<> would be a nice here
+	/* ********************/
 
-	pf ("    <ChannelNameSet Name=\"Presets\">\n");
+	pf ("    <ChannelNameSet Name=\"GM Notes\">\n");
 	pf ("      <AvailableForChannels>\n");
 	for (int c = 0; c < 16; ++c) {
-		pf ("        <AvailableChannel Channel=\"%d\" Available=\"true\"/>\n", c + 1);
+		if (!self->is_drums[c]) {
+			pf ("        <AvailableChannel Channel=\"%d\" Available=\"true\"/>\n", c + 1);
+		}
 	}
 	pf ("      </AvailableForChannels>\n");
 	pf ("      <UsesControlNameList Name=\"Controls\"/>\n");
@@ -550,22 +574,63 @@ mn_file (LV2_Handle instance)
 		pf ("            <ControlChange Control=\"32\" Value=\"%d\"/>\n", b->bank & 127);
 		pf ("        </MIDICommands>\n");
 		if (p->next) {
-			pf ("        <PatchNameList>\n");
-			int n = 0;
-			while (p->next) {
-				pf ("      <Patch Number=\"%d\" Name=\"%s\" ProgramChange=\"%d\"/>\n",
-						n, p->name, p->program);
-				p = p->next;
-				++n;
-			}
-			pf ("        </PatchNameList>\n");
+			pf ("      <UsesPatchNameList Name=\"Patch Bank Names %d\"/>\n", b->bank);
 		}
 		pf ("      </PatchBank>\n");
 		b = b->next;
 	}
+	pf ("    </ChannelNameSet>\n");
+
+	/* ********************/
+
+	pf ("    <ChannelNameSet Name=\"GM Drums\">\n");
+	pf ("      <AvailableForChannels>\n");
+	for (int c = 0; c < 16; ++c) {
+		if (self->is_drums[c]) {
+			pf ("        <AvailableChannel Channel=\"%d\" Available=\"true\"/>\n", c + 1);
+		}
+	}
+	pf ("      </AvailableForChannels>\n");
+	pf ("      <UsesControlNameList Name=\"Controls\"/>\n");
+	pf ("      <UsesNoteNameList Name=\"General MIDI Drums\"/>\n");
+
+	b = self->presets;
+	while (b->next) {
+		struct Program* p = b->pgm;
+		pf ("      <PatchBank Name=\"Patch Bank %d\">\n", b->bank);
+		pf ("        <MIDICommands>\n");
+		pf ("            <ControlChange Control=\"0\" Value=\"%d\"/>\n", (b->bank >> 7) & 127);
+		pf ("            <ControlChange Control=\"32\" Value=\"%d\"/>\n", b->bank & 127);
+		pf ("        </MIDICommands>\n");
+		if (p->next) {
+			pf ("      <UsesPatchNameList Name=\"Patch Bank Names %d\"/>\n", b->bank);
+		}
+		pf ("      </PatchBank>\n");
+		b = b->next;
+	}
+	pf ("    </ChannelNameSet>\n");
+
+	/* ********************/
+
+	b = self->presets;
+	while (b->next) {
+		struct Program* p = b->pgm;
+		if (!p->next) {
+			b = b->next;
+			continue;
+		}
+		pf ("    <PatchNameList Name=\"Patch Bank Names %d\">\n", b->bank);
+		int n = 0;
+		while (p->next) {
+			pf ("      <Patch Number=\"%d\" Name=\"%s\" ProgramChange=\"%d\"/>\n", n, p->name, p->program);
+			p = p->next;
+			++n;
+		}
+		pf ("    </PatchNameList>\n");
+		b = b->next;
+	}
 	pthread_mutex_unlock (&self->bp_lock);
 
-	pf ("    </ChannelNameSet>\n");
 
 	pf ("    <ControlNameList Name=\"Controls\">\n");
 	pf ("       <Control Type=\"7bit\" Number=\"1\" Name=\"Modulation\"/>\n");
@@ -583,6 +648,56 @@ mn_file (LV2_Handle instance)
 	pf ("       <Control Type=\"7bit\" Number=\"91\" Name=\"Reverb\"/>\n");
 	pf ("       <Control Type=\"7bit\" Number=\"93\" Name=\"Chorus\"/>\n");
 	pf ("    </ControlNameList>\n");
+
+	pf ("    <NoteNameList Name=\"General MIDI Drums\">\n");
+	pf ("      <Note Number=\"35\" Name=\"Bass Drum 2\"/>\n");
+	pf ("      <Note Number=\"36\" Name=\"Bass Drum 1\"/>\n");
+	pf ("      <Note Number=\"37\" Name=\"Side Stick/Rimshot\"/>\n");
+	pf ("      <Note Number=\"38\" Name=\"Snare Drum 1\"/>\n");
+	pf ("      <Note Number=\"39\" Name=\"Hand Clap\"/>\n");
+	pf ("      <Note Number=\"40\" Name=\"Snare Drum 2\"/>\n");
+	pf ("      <Note Number=\"41\" Name=\"Low Tom 2\"/>\n");
+	pf ("      <Note Number=\"42\" Name=\"Closed Hi-hat\"/>\n");
+	pf ("      <Note Number=\"43\" Name=\"Low Tom 1\"/>\n");
+	pf ("      <Note Number=\"44\" Name=\"Pedal Hi-hat\"/>\n");
+	pf ("      <Note Number=\"45\" Name=\"Mid Tom 2\"/>\n");
+	pf ("      <Note Number=\"46\" Name=\"Open Hi-hat\"/>\n");
+	pf ("      <Note Number=\"47\" Name=\"Mid Tom 1\"/>\n");
+	pf ("      <Note Number=\"48\" Name=\"High Tom 2\"/>\n");
+	pf ("      <Note Number=\"49\" Name=\"Crash Cymbal 1\"/>\n");
+	pf ("      <Note Number=\"50\" Name=\"High Tom 1\"/>\n");
+	pf ("      <Note Number=\"51\" Name=\"Ride Cymbal 1\"/>\n");
+	pf ("      <Note Number=\"52\" Name=\"Chinese Cymbal\"/>\n");
+	pf ("      <Note Number=\"53\" Name=\"Ride Bell\"/>\n");
+	pf ("      <Note Number=\"54\" Name=\"Tambourine\"/>\n");
+	pf ("      <Note Number=\"55\" Name=\"Splash Cymbal\"/>\n");
+	pf ("      <Note Number=\"56\" Name=\"Cowbell\"/>\n");
+	pf ("      <Note Number=\"57\" Name=\"Crash Cymbal 2\"/>\n");
+	pf ("      <Note Number=\"58\" Name=\"Vibra Slap\"/>\n");
+	pf ("      <Note Number=\"59\" Name=\"Ride Cymbal 2\"/>\n");
+	pf ("      <Note Number=\"60\" Name=\"High Bongo\"/>\n");
+	pf ("      <Note Number=\"61\" Name=\"Low Bongo\"/>\n");
+	pf ("      <Note Number=\"62\" Name=\"Mute High Conga\"/>\n");
+	pf ("      <Note Number=\"63\" Name=\"Open High Conga\"/>\n");
+	pf ("      <Note Number=\"64\" Name=\"Low Conga\"/>\n");
+	pf ("      <Note Number=\"65\" Name=\"High Timbale\"/>\n");
+	pf ("      <Note Number=\"66\" Name=\"Low Timbale\"/>\n");
+	pf ("      <Note Number=\"67\" Name=\"High Agogô\"/>\n");
+	pf ("      <Note Number=\"68\" Name=\"Low Agogô\"/>\n");
+	pf ("      <Note Number=\"69\" Name=\"Cabasa\"/>\n");
+	pf ("      <Note Number=\"70\" Name=\"Maracas\"/>\n");
+	pf ("      <Note Number=\"71\" Name=\"Short Whistle\"/>\n");
+	pf ("      <Note Number=\"72\" Name=\"Long Whistle\"/>\n");
+	pf ("      <Note Number=\"73\" Name=\"Short Güiro\"/>\n");
+	pf ("      <Note Number=\"74\" Name=\"Long Güiro\"/>\n");
+	pf ("      <Note Number=\"75\" Name=\"Claves\"/>\n");
+	pf ("      <Note Number=\"76\" Name=\"High Wood Block\"/>\n");
+	pf ("      <Note Number=\"77\" Name=\"Low Wood Block\"/>\n");
+	pf ("      <Note Number=\"78\" Name=\"Mute Cuíca\"/>\n");
+	pf ("      <Note Number=\"79\" Name=\"Open Cuíca\"/>\n");
+	pf ("      <Note Number=\"80\" Name=\"Mute Triangle\"/>\n");
+	pf ("      <Note Number=\"81\" Name=\"Open Triangle\"/>\n");
+	pf ("    </NoteNameList>\n");
 
 	pf (
 			"  </MasterDeviceNames>\n"
