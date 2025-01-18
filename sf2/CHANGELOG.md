@@ -2,6 +2,81 @@
 
 ---
 
+## 2.0.1 (2024-10-15)
+
+* Removed the version number and space from the SoundFont filename so users can update the SoundFont without changing filename links that point to it.
+* **000:007 Clavinet**: Improved note volume consistency across the key range. It is now better balanced with the Roland SC-55.
+* Fixed **000:010 Music Box**: volume envelope decay time; it was too short.
+* **000:048 Fast Strings**: The volume envelope duration increase at lower velocities has been capped to avoid quiet notes starting too slowly.
+* **000:049 Slow Strings**: The volume envelope duration decrease at higher velocities has been capped to avoid loud notes starting too quickly.
+* Fixed clicking loops in the synth strings and synth bell samples used in **000:050 Synth Strings 1**, **000:088 Fantasia**, and many other pad presets.
+* Re-programmed **000:098 Crystal** to more closely match the Roland Sound Canvas.
+* Updated the license text embedded within the SoundFont to match LICENSE.txt.
+
+## 2.0.0 (2024-9-19)
+
+* Updated compatibility requirements (see README.html for more details).
+* Reprogrammed all of the presets that use single-cycle analog waveforms using better waveforms that no longer create aliasing.
+* Many changes were made to better emulate the behavior of the Roland Sound Canvas (SC-55 and SC-8820), including:
+  -  Re-balanced the volume of all instruments.
+  -  Increased reverb (CC91) and chorus (CC93) send amount.
+  -  Reverb level and reverb send amount is greatly reduced on drum kit kick drums.
+  -  Many instruments were adjusted or redesigned (see individual instrument notes below).
+* Adjusted the filter balance and envelope of many instruments as well as other small tweaks here and there.
+* Increased the velocity dynamic range of all harpsichords and organs. In previous versions of GeneralUser GS, harpsichords and organs had a greatly reduced dynamic range. This made them behave more like their real-world counterparts, but caused compatibility issues with MIDI files that use velocity to control an instrument’s volume. If you wish to experience these instruments without velocity affecting volume, you can find copies of the bank 0 instruments on bank 11 and copies of the bank 8 instruments on bank 12 with “noVel” in the preset name.
+* Expanded key range up to MIDI note #108 (top note on an 88-key piano) for instruments that were previously restricted. Downsampled samples were created to make this extension work correctly on Audigy.
+* Added new instrument **011:029 Wah Guitar** (CC21). This preset is the Overdrive Guitar with a built-in wah pedal, controllable via MIDI CC #21.
+* Added new drum kit **128:127 CM-64/32L** to complete support for all Roland SC-55 drum kits.
+* **000:006 Harpsichord** and **008:006 Coupled Harpsichord**: Reprogrammed for more vibrant tone and varied note attack across the velocity range.
+* **000:007 Clavinet**: Fixed buzzing loops, completely reprogrammed, and added simulated key release noise.
+* **000:008 Celeste** and **000:010 Music Box**: Fixed buzzing loops, removed need for duplicate samples, added low velocity filtering. More consistent timing between voices in the music box.
+* **000:011 Vibraphone**: More natural envelope and velocity response. I also added tremolo to the sound to better match Roland’s vision for the sound. I also added a version of the preset without the tremolo: **011:011 Vibraphone** No Trem.
+* **000:019 Pipe Organ**: Transposed down an octave to match the tonality of the Sound Canvas.
+* **008:021 Italian Accordion**: Fixed misspelling in preset name.
+* **000:025 Steel Guitar** and **008:025 12-String Guitar**: Re-programmed for better velocity response and string decay sound.
+* **016:025 Mandolin**: Re-programmed with new filter balance. This preset also now avoids the use of volume delay envelope, using an alternate method of creating a staggered string effect that provides much better results.
+* **000:030 Distortion Guitar** and **008:030 Feedback Guitar**: Improved the programming and balance.
+* **000:032 Acoustic Bass**: Better use of the filter.
+* **000:033 Finger Bass**: Improved filter and mod envelope. Previous preset was too muffled in tone.
+* **000:038 Synth Bass 1**: Better velocity response.
+* **001:038 Synth Bass 101**: Reprogrammed to better match the Roland SC-8820.
+* **008:038 Acid Bass**: Reprogrammed to better match the Roland SC-8820.
+* **000:039 Synth Bass 2**: Re-programmed to better simulate FM bass velocity behavior.
+* **000:044 Tremolo Strings**, **000:048 Fast Strings**, **000:049 Slow Strings**, and **011:049 Velo Strings**: Reprogrammed with quicker note response in the fast presets and a smoother note attack at lower velocities in all presets. Also slightly reduced the tremolo strength in the tremolo strings.
+* **008:048 Orchestra Pad**: Brass layer has been raised an octave to match the Roland Sound Canvas.
+* **000:060 French Horns** and **001:060 Solo French Horn**: Reprogrammed for better dynamic range and note attack. The valkyries should no longer sound like they’re riding through molasses.
+* **000:062 Synth Brass 1**: Improved sound programming.
+* **000:063 Synth Brass 2**: Reprogrammed to better match the Roland SC-8820.
+* **000:071 Clarinet**: Better programming of the velocity response of both envelope and filter.
+* **000:073 Flute**: Fixed bumpy loops and re-balanced the volume across the instrument’s range.
+* **000:078 Whistle**: Re-programmed to match the Roland original. The previous version, called “Irish Tin Whistle”, has been split into emulations of the Roland SC-8820’s three tin whistle presets:
+  -  **024:075 Tin Whistle**: An Irish tin whistle that plays a short trill when velocity is 100 or greater.
+  -  **025:075 Tin Whistle Nm**: Same as above without the trill. This preset is identical to the old “Irish Tin Whistle” that used to be on **000:078**.
+  -  **026:075 Tin Whistle Or**: This version of the tin whistle preset always plays the short trill, regardless of velocity.
+* **011:078 Whistlin'**: Replaced the AWE32 ROM white noise sample.
+* **000:079 Ocarina**: The previous samples had many issues and have been replaced with old AKAI public domain samples.
+* **001:080 Square Wave**: Reprogrammed to better match the Roland SC-8820.
+* **000:081 Saw Lead**: Better volume and filter envelope behavior.
+* **001:081 Saw Wave**: Reprogrammed to better match the Roland SC-8820.
+* **008:081 Doctor Solo**: Completely reprogrammed using the new analog waveforms. I also removed the duplicate of this preset that was in bank 11.
+* **012:081 Saw Lead 2**: Eliminated big jumps in velocity-to-filter scaling.
+* **000:086 5th Saw Wave**: Envelopes now better match the Roland Sound Canvas.
+* **000:087 Bass & Lead**: Completely reprogrammed using the new analog waveforms.
+* **002:102 Echo Pan**: Reprogrammed to better match the Roland SC-8820.
+* **008:118 808 Tom**: Fixed pitch and programming to match the toms in the 808 drum kit.
+* **003:122 Wind**: Reprogrammed to better match the Roland Sound Canvas. The previous version of this preset, “Howling Winds” has been moved to bank 11.
+* **000:123 Birds**: New sample and programming to better match the Roland Sound Canvas family behavior.
+* **003:123 Bird 2**: Reprogrammed to better match the Roland SC-8820.
+* **004:124 Scratch**: Corrected the preset number, which was 123 in previous versions.
+* **012:127 Shooting Star**: reduced volume and added key number scaling of filter sweep effect
+* **128:001 Standard Kit**: New primary snare with 3 sampled velocity layers. The old snare is now available in the **128:002 Standard 3 drum kit**.
+* **128:008 Room Kit**: Improved programming and sound of primary snare.
+* **128:016 Power Kit**: New primary snare based on the new standard kit snare + gated effect layer.
+* **128:025 808/909 Kit** and **128:026 Dance Kit**: Improved velocity response of second snare (TR-909).
+* **128:032 Jazz Kit**: Improved velocity response of the snares.
+* **128:048 Orchestral Kit**: Programmed a secondary kick that sounds more like a type of orchestral bass drum.
+* **128:056 SFX Kit**: Updated with the new wind and birds sound effects.
+
 ## 1.52
 
 * **000:004 Tine Electric Piano**: Fixed buzzy loops and improved dynamics and tone.
