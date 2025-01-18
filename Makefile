@@ -127,7 +127,7 @@ $(BUILDDIR)$(LV2NAME).ttl: Makefile lv2ttl/$(LV2NAME).*.in
 	sed "s/@LV2NAME@/$(LV2NAME)/;s/@VERSION@/lv2:microVersion $(LV2MIC) ;lv2:minorVersion $(LV2MIN) ;/g" \
 		lv2ttl/$(LV2NAME).ttl.in > $(BUILDDIR)$(LV2NAME).ttl
 
-$(BUILDDIR)%.sf2:
+$(BUILDDIR)%.sf2: sf2/*.sf2
 	cp -v sf2/$(*F).sf2 $@
 
 FLUID_SRC = \
