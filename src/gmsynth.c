@@ -236,7 +236,7 @@ load_sf2 (GFSSynth* self, const char* fn)
 			self->last_program[chn]  = pgm;
 
 		}
-		if (0 == strcmp (name, "Standard")) {
+		if (0 == strcmp (name, "Standard 1")) {
 			/* set default drumkit to channel 10 */
 			fluid_synth_program_select (self->synth, 9, synth_id, bank, pgm);
 			self->last_bank_msb[9] = bank >> 7;
