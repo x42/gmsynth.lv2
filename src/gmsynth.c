@@ -26,6 +26,7 @@
 #include <math.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <ctype.h>
 
 #define GFS_URN "http://gareus.org/oss/lv2/gmsynth"
 
@@ -49,6 +50,8 @@
 #include "bankpatch_lv2.h"
 
 #include "fluidsynth.h"
+
+#define PATH_SIZE_MAX 1024
 
 #ifdef _WIN32
 #define PATH_SEP "\\"
@@ -256,6 +259,15 @@ load_sf2 (GFSSynth* self, const char* fn)
 	return true;
 }
 
+static void build_plugin_uri(char *dest, const char *identifier)
+{
+	int written = snprintf(dest, PATH_SIZE_MAX, "%s#%s", GFS_URN, identifier);
+
+	if (written < 0 || written >= PATH_SIZE_MAX) {
+		dest[PATH_SIZE_MAX - 1] = '\0';
+	}
+}
+
 static int file_exists (const char *filename) {
 	struct stat s;
 	if (!filename || strlen(filename) < 1) return 0;
@@ -263,6 +275,50 @@ static int file_exists (const char *filename) {
 	if (result != 0) return 0; /* stat() failed */
 	if (S_ISREG(s.st_mode)) return 1; /* is a regular file - ok */
 	return 0;
+}
+
+static void trim_whitespaces(char *str)
+{
+	char *end;
+
+	while (isspace((unsigned char)*str))
+		str++;
+
+	if (*str == 0)
+	{
+		*str = '\0';
+		return;
+	}
+
+	end = str + strlen(str) - 1;
+	while (end > str && isspace((unsigned char)*end))
+		end--;
+
+	*(end + 1) = '\0';
+}
+
+static uint32_t count_non_empty_lines(const char *filepath)
+{
+	FILE *file = fopen(filepath, "r");
+	if (!file)
+	{
+		return 0;
+	}
+
+	char line[PATH_SIZE_MAX];
+	uint32_t count = 0;
+
+	while (fgets(line, sizeof(line), file))
+	{
+		trim_whitespaces(line);
+		if (line[0] != '\0')
+		{
+			count++;
+		}
+	}
+
+	fclose(file);
+	return count;
 }
 
 /* *****************************************************************************
@@ -303,8 +359,24 @@ instantiate (const LV2_Descriptor*     descriptor,
 		return NULL;
 	}
 
-	char sf2_file_path[1024];
-	snprintf (sf2_file_path, sizeof (sf2_file_path), "%s" PATH_SEP "GeneralUser_LV2.sf2", bundle_path);
+	char sf2_file_path[PATH_SIZE_MAX];
+
+	const char *soundfont_file_name = descriptor->URI;
+	bool found_file_name_start = false;
+	while (!found_file_name_start && *soundfont_file_name)
+	{
+		if ('#' == *soundfont_file_name)
+		{
+			found_file_name_start = true;
+		}
+		soundfont_file_name++;
+	}
+
+	snprintf(
+		sf2_file_path, sizeof(sf2_file_path),
+		"%s" PATH_SEP "soundfonts" PATH_SEP "%s",
+		bundle_path, soundfont_file_name);
+
 	sf2_file_path[sizeof(sf2_file_path) - 1] = '\0';
 
 	if (!file_exists (sf2_file_path)) {
@@ -734,16 +806,33 @@ extension_data (const char* uri)
 	return NULL;
 }
 
-static const LV2_Descriptor descriptor = {
-	GFS_URN,
-	instantiate,
-	connect_port,
-	NULL,
-	run,
-	deactivate,
-	cleanup,
-	extension_data
+static void library_cleanup(LV2_Lib_Handle handle)
+{
+	if (handle)
+	{
+		free(handle);
+	}
+}
+
+static const LV2_Descriptor*
+library_get_plugin(LV2_Lib_Handle handle, uint32_t index)
+{
+	LV2_Descriptor *library = (LV2_Descriptor*) handle;
+	return &(library[index]);
+}
+
+static const LV2_Descriptor DESCRIPTOR_PROTOTYPE = {
+	.URI = NULL,
+	.instantiate = instantiate,
+	.connect_port = connect_port,
+	.activate = NULL,
+	.run = run,
+	.deactivate = deactivate,
+	.cleanup = cleanup,
+	.extension_data = extension_data
 };
+
+static LV2_Lib_Descriptor lib_descriptor;
 
 #undef LV2_SYMBOL_EXPORT
 #ifdef _WIN32
@@ -751,14 +840,68 @@ static const LV2_Descriptor descriptor = {
 #else
 #    define LV2_SYMBOL_EXPORT  __attribute__ ((visibility ("default")))
 #endif
+
+
 LV2_SYMBOL_EXPORT
-const LV2_Descriptor*
-lv2_descriptor (uint32_t index)
+const LV2_Lib_Descriptor *
+lv2_lib_descriptor(const char *bundle_path, const LV2_Feature *const *features)
 {
-	switch (index) {
-	case 0:
-		return &descriptor;
-	default:
+	char list_path[PATH_SIZE_MAX];
+	snprintf(list_path, sizeof(list_path), "%s" PATH_SEP "soundfonts_list.txt", bundle_path);
+
+	uint32_t number_of_plugins = count_non_empty_lines(list_path);
+	
+	if (0 == number_of_plugins)
+	{
 		return NULL;
 	}
+
+	LV2_Descriptor *library =
+		(LV2_Descriptor *)calloc(number_of_plugins, sizeof(LV2_Descriptor));
+	if (NULL == library)
+	{
+		return NULL;
+	}
+
+	FILE *file = fopen(list_path, "r");
+	if (!file)
+	{
+		free(library);
+		return NULL;
+	}
+
+	char line[PATH_SIZE_MAX];
+    uint32_t index = 0;
+
+	while (fgets(line, sizeof(line), file) && index < number_of_plugins)
+	{
+		trim_whitespaces(line);
+		if (line[0] == '\0')
+		{
+			continue;
+		}
+
+		memcpy(&library[index], &DESCRIPTOR_PROTOTYPE, sizeof(LV2_Descriptor));
+
+		char *uri = malloc(PATH_SIZE_MAX);
+		if (!uri)
+		{
+			fclose(file);
+			free(library);
+			return NULL;
+		}
+		build_plugin_uri(uri, line);
+		library[index].URI = uri;
+
+		index++;
+	}
+
+	fclose(file);
+
+	lib_descriptor.handle = library;
+	lib_descriptor.size = sizeof(LV2_Lib_Descriptor);
+	lib_descriptor.cleanup = library_cleanup;
+	lib_descriptor.get_plugin = library_get_plugin;
+
+	return &lib_descriptor;
 }
