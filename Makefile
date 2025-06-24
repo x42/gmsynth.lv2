@@ -34,6 +34,7 @@ endif
 ###############################################################################
 
 BUILDDIR = build/
+SOUNDFONTSDIR = soundfonts/
 
 ###############################################################################
 
@@ -67,7 +68,12 @@ endif
 
 targets+=$(BUILDDIR)$(LV2NAME)$(LIB_EXT)
 
-targets+=$(BUILDDIR)GeneralUser_LV2.sf2
+SF2_FILES := $(notdir $(wildcard sf2/*.sf2))
+targets += $(addprefix $(BUILDDIR)$(SOUNDFONTSDIR),$(SF2_FILES))
+
+PY_FILES  := $(notdir $(wildcard python_scripts/*.py))
+targets += $(addprefix $(BUILDDIR),$(PY_FILES))
+
 
 ###############################################################################
 # extract versions
@@ -127,8 +133,12 @@ $(BUILDDIR)$(LV2NAME).ttl: Makefile lv2ttl/$(LV2NAME).*.in
 	sed "s/@LV2NAME@/$(LV2NAME)/;s/@VERSION@/lv2:microVersion $(LV2MIC) ;lv2:minorVersion $(LV2MIN) ;/g" \
 		lv2ttl/$(LV2NAME).ttl.in > $(BUILDDIR)$(LV2NAME).ttl
 
-$(BUILDDIR)%.sf2: sf2/*.sf2
-	cp -v sf2/$(*F).sf2 $@
+$(BUILDDIR)$(SOUNDFONTSDIR)%.sf2: sf2/%.sf2
+	@mkdir -p $(dir $@)
+	cp -v $< $@
+
+$(BUILDDIR)%.py: python_scripts/%.py
+	cp -v $< $@
 
 FLUID_SRC = \
             fluidsynth/src/fluid_adsr_env.c \
@@ -182,26 +192,20 @@ $(BUILDDIR)$(LV2GUI)$(LIB_EXT): gui/$(LV2NAME).c
 
 install: all
 	install -d $(DESTDIR)$(LV2DIR)/$(BUNDLE)
-	install -m644 $(BUILDDIR)manifest.ttl $(BUILDDIR)$(LV2NAME).ttl $(BUILDDIR)*.sf2 $(DESTDIR)$(LV2DIR)/$(BUNDLE)
-	install -m755 $(BUILDDIR)$(LV2NAME)$(LIB_EXT) $(DESTDIR)$(LV2DIR)/$(BUNDLE)
+	cp -vr $(BUILDDIR)* $(DESTDIR)$(LV2DIR)/$(BUNDLE)/
+	find $(DESTDIR)$(LV2DIR)/$(BUNDLE) -type f -exec chmod 644 {} +
+	chmod 755 $(DESTDIR)$(LV2DIR)/$(BUNDLE)/$(LV2NAME)$(LIB_EXT)
+	python $(DESTDIR)$(LV2DIR)/$(BUNDLE)/scan_soundfonts.py
 
 uninstall:
-	rm -f $(DESTDIR)$(LV2DIR)/$(BUNDLE)/manifest.ttl
-	rm -f $(DESTDIR)$(LV2DIR)/$(BUNDLE)/$(LV2NAME).ttl
-	rm -f $(DESTDIR)$(LV2DIR)/$(BUNDLE)/*.sf2
-	rm -f $(DESTDIR)$(LV2DIR)/$(BUNDLE)/$(LV2NAME)$(LIB_EXT)
-	-rmdir $(DESTDIR)$(LV2DIR)/$(BUNDLE)
+	rm -r $(DESTDIR)$(LV2DIR)/$(BUNDLE)
 
 install-man:
 
 uninstall-man:
 
 clean:
-	rm -f $(BUILDDIR)manifest.ttl $(BUILDDIR)$(LV2NAME).ttl \
-	  $(BUILDDIR)$(LV2NAME)$(LIB_EXT) \
-	  $(BUILDDIR)*.sf2
-	rm -rf $(BUILDDIR)*.dSYM
-	-test -d $(BUILDDIR) && rmdir $(BUILDDIR) || true
+	rm -r $(BUILDDIR)
 
 distclean: clean
 	rm -f cscope.out cscope.files tags
