@@ -356,6 +356,9 @@ instantiate (const LV2_Descriptor*     descriptor,
 	fluid_synth_set_polyphony (self->synth, 256);
 	fluid_synth_set_sample_rate (self->synth, (float)rate);
 
+	/* allow 14bit bank-select on drum channel, otherwise MSB is ignored and drums forced */
+	fluid_synth_set_channel_type (self->synth, 9, CHANNEL_TYPE_MELODIC);
+
 	self->fmidi_event = new_fluid_midi_event ();
 
 	if (!self->fmidi_event) {
