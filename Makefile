@@ -44,6 +44,9 @@ targets=
 LOADLIBES=-lm
 
 UNAME=$(shell uname)
+ifneq (,$(filter MINGW% MSYS% CYGWIN%,$(UNAME)))
+  WINDOWS_BUILD=yes
+endif
 ifeq ($(UNAME),Darwin)
   LV2LDFLAGS=-dynamiclib
   LIB_EXT=.dylib
@@ -60,6 +63,10 @@ endif
 ifneq ($(XWIN),)
   CC=$(XWIN)-gcc
   STRIP=$(XWIN)-strip
+  WINDOWS_BUILD=yes
+endif
+
+ifeq ($(WINDOWS_BUILD),yes)
   LV2LDFLAGS=-Wl,-Bstatic -Wl,-Bdynamic -Wl,--as-needed -pthread
   LIB_EXT=.dll
   override LDFLAGS += -static-libgcc
@@ -100,7 +107,7 @@ endif
 # add library dependent flags and libs
 override CFLAGS += $(OPTIMIZATIONS) -DVERSION="\"$(gmsynth_VERSION)\""
 override CFLAGS += `$(PKG_CONFIG) --cflags lv2 glib-2.0`
-ifeq ($(XWIN),)
+ifneq ($(WINDOWS_BUILD),yes)
 override CFLAGS += -fPIC -fvisibility=hidden
 else
 override CFLAGS += -DPTW32_STATIC_LIB
