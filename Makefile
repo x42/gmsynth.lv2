@@ -117,17 +117,18 @@ all: $(BUILDDIR)manifest.ttl $(BUILDDIR)$(LV2NAME).ttl $(targets)
 lv2syms:
 	echo "_lv2_descriptor" > lv2syms
 
-$(BUILDDIR)manifest.ttl: lv2ttl/manifest.ttl.in Makefile
-	@mkdir -p $(BUILDDIR)
+$(BUILDDIR):
+	@mkdir -p $@
+
+$(BUILDDIR)manifest.ttl: lv2ttl/manifest.ttl.in Makefile | $(BUILDDIR)
 	sed "s/@LV2NAME@/$(LV2NAME)/g;s/@LIB_EXT@/$(LIB_EXT)/" \
 		lv2ttl/manifest.ttl.in > $(BUILDDIR)manifest.ttl
 
-$(BUILDDIR)$(LV2NAME).ttl: Makefile lv2ttl/$(LV2NAME).*.in
-	@mkdir -p $(BUILDDIR)
+$(BUILDDIR)$(LV2NAME).ttl: Makefile lv2ttl/$(LV2NAME).*.in | $(BUILDDIR)
 	sed "s/@LV2NAME@/$(LV2NAME)/;s/@VERSION@/lv2:microVersion $(LV2MIC) ;lv2:minorVersion $(LV2MIN) ;/g" \
 		lv2ttl/$(LV2NAME).ttl.in > $(BUILDDIR)$(LV2NAME).ttl
 
-$(BUILDDIR)%.sf2: sf2/*.sf2
+$(BUILDDIR)%.sf2: sf2/*.sf2 | $(BUILDDIR)
 	cp -v sf2/$(*F).sf2 $@
 
 FLUID_SRC = \
@@ -164,8 +165,7 @@ CPPFLAGS += -Ifluidsynth -I fluidsynth/fluidsynth -DHAVE_CONFIG_H -D DEFAULT_SOU
 DSP_SRC  = src/$(LV2NAME).c $(FLUID_SRC)
 DSP_DEPS = $(DSP_SRC)
 
-$(BUILDDIR)$(LV2NAME)$(LIB_EXT): $(DSP_DEPS) Makefile
-	@mkdir -p $(BUILDDIR)
+$(BUILDDIR)$(LV2NAME)$(LIB_EXT): $(DSP_DEPS) Makefile | $(BUILDDIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -std=gnu99 \
 	  -o $(BUILDDIR)$(LV2NAME)$(LIB_EXT) $(DSP_SRC) \
 	  -shared $(LV2LDFLAGS) $(LDFLAGS) $(LOADLIBES)
